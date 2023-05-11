@@ -86,5 +86,7 @@ elf_status elf_init(elf_ctx *ctx, void *info);
 elf_status elf_load(elf_ctx *ctx);
 
 void load_bincode_from_host_elf(process *p);
+void load_debug(process *p);
+void load_file(process *p, char *filename, int linenum, char *line);
 
 #endif

@@ -285,3 +285,110 @@ void load_bincode_from_host_elf(process *p) {
 
   sprint("Application program entry point (virtual address): 0x%lx\n", p->trapframe->epc);
 }
+
+void load_debug_line(elf_ctx *ctx)
+{
+  //sprint("load_debug_ling\n");
+  //load section_header
+  elf_sect_header section_header[ctx->ehdr.shnum];
+  elf_fpread(ctx, (void *)section_header, sizeof(section_header), ctx->ehdr.shoff);
+
+  //sprint("shstrndx:%d\n", ctx->ehdr.shstrndx);
+  //load shstr_table
+  elf_sect_header *shstrtab=section_header+ctx->ehdr.shstrndx;
+  char shstr_table[shstrtab->size/sizeof(char)];
+  elf_fpread(ctx, (void *)shstr_table, sizeof(shstr_table), shstrtab->offset);
+  // for(int i=0;i<ctx->ehdr.shnum;i++)
+  // {
+  //   uint32 Name=section_header[i].sh_name;
+  //   sprint("%d: %d %s\n", i, Name, shstr_table+Name);
+  // }
+
+  //find symtab and strtab section header
+  elf_sect_header *debug_line=0;
+  for(int i=0;i<ctx->ehdr.shnum;i++)
+  {
+    char *section_name = shstr_table+section_header[i].name;
+    if (strcmp(section_name, ".debug_line")==0) debug_line=section_header + i;
+  }
+  //sprint("%s\n", shstr_table+debug_line->name);
+
+  //for(int i=0;i<(strtab->sh_size/sizeof(char));i++) {sprint("%c", str_table[i]);}
+  //sprint("\n");
+
+  //load debug_line
+  static char debugline[65536];
+  elf_fpread(ctx, (void *)debugline, debug_line->size, debug_line->offset);
+  make_addr_line(ctx, debugline, debug_line->size);
+
+}
+
+void load_debug(process *p)
+{
+  //sprint("load_debug\n");
+  arg_buf arg_bug_msg;
+
+  // retrieve command line arguements
+  size_t argc = parse_args(&arg_bug_msg);
+  //if (!argc) panic("You need to specify the application program!\n");
+
+  //sprint("Application: %s\n", arg_bug_msg.argv[0]);
+
+  //elf loading. elf_ctx is defined in kernel/elf.h, used to track the loading process.
+  elf_ctx elfloader;
+  // elf_info is defined above, used to tie the elf file and its corresponding process.
+  elf_info info;
+
+  info.f = spike_file_open(arg_bug_msg.argv[0], O_RDONLY, 0);
+  info.p = p;
+  // IS_ERR_VALUE is a macro defined in spike_interface/spike_htif.h
+  if (IS_ERR_VALUE(info.f)) panic("Fail on openning the input application program.\n");
+
+  // init elfloader context. elf_init() is defined above.
+  if (elf_init(&elfloader, &info) != EL_OK)
+    panic("fail to init elfloader.\n");
+
+  // load elf. elf_load() is defined above.
+  if (elf_load(&elfloader) != EL_OK) panic("Fail on loading elf.\n");
+
+  // entry (virtual, also physical in lab1_x) address
+  //p->trapframe->epc = elfloader.ehdr.entry;
+
+  load_debug_line(&elfloader);
+
+  // close the host spike file
+  spike_file_close( info.f );
+
+  //sprint("Application program entry point (virtual address): 0x%lx\n", p->trapframe->epc);
+}
+
+void load_file(process *p, char *filename, int linenum, char *line)
+{
+  spike_file_t *f=spike_file_open(filename, O_RDONLY, 0);
+
+  static char buf[1024];
+  int offset=0,cnt=1;
+
+  while(1) 
+  {
+    int size=spike_file_pread(f, buf, sizeof(buf), offset);
+    offset+=size;
+    for(int i=0;i<size;i++) 
+    {
+      if(buf[i]=='\n')
+      {
+        cnt++;
+        if(cnt>linenum) goto end;
+      } 
+      else 
+      {
+        if(cnt==linenum) *(line++)=buf[i];
+      }
+    }
+  }
+  end:;
+  *line = '\0';
+
+  spike_file_close(f);
+}
+
