@@ -25,6 +25,28 @@ typedef struct elf_header_t {
   uint16 shstrndx;  /* Section header string table index */
 } elf_header;
 
+typedef struct elf_section_header_t {
+  uint32   sh_name;      /* Section name (string tbl index) */
+  uint32   sh_type;      /* Section type */
+  uint64   sh_flags;     /* Section flags */
+  uint64   sh_addr;      /* Section virtual addr at execution */
+  uint64   sh_offset;    /* Section file offset */
+  uint64   sh_size;      /* Section size in bytes */
+  uint32   sh_link;      /* Link to another section */
+  uint32   sh_info;      /* Additional section information */
+  uint64   sh_addralign; /* Section alignment */
+  uint64   sh_entsize;   /* Entry size if section holds table */
+} elf_section_header;
+
+typedef struct elf_sym_section_t {
+	uint32	st_name;         /* Symbol name (string tbl index) */
+	unsigned char	st_info;   /* Symbol type and binding */
+	unsigned char	st_other;  /* Symbol visibility */
+	uint16	st_shndx;        /* Section index */
+	uint64	st_value;        /* Symbol value */
+	uint64	st_size;         /* Symbol size */
+} elf_sym_section;
+
 // Program segment header.
 typedef struct elf_prog_header_t {
   uint32 type;   /* Segment type */
@@ -36,6 +58,11 @@ typedef struct elf_prog_header_t {
   uint64 memsz;  /* Segment size in memory */
   uint64 align;  /* Segment alignment */
 } elf_prog_header;
+
+typedef struct function_name_t {
+  char name[256];
+  uint64 addr;
+} function_name;
 
 #define ELF_MAGIC 0x464C457FU  // "\x7FELF" in little endian
 #define ELF_PROG_LOAD 1
@@ -59,5 +86,6 @@ elf_status elf_init(elf_ctx *ctx, void *info);
 elf_status elf_load(elf_ctx *ctx);
 
 void load_bincode_from_host_elf(process *p);
+void load_function_name(process *p, int *func_num, function_name *func_name);
 
 #endif

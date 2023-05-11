@@ -138,3 +138,92 @@ void load_bincode_from_host_elf(process *p) {
 
   sprint("Application program entry point (virtual address): 0x%lx\n", p->trapframe->epc);
 }
+void load_symbol(elf_ctx *ctx, int *func_num, function_name *func_name)
+{
+  //load section_header
+  elf_section_header section_header[ctx->ehdr.shnum];
+  elf_fpread(ctx, (void *)section_header, sizeof(section_header), ctx->ehdr.shoff);
+
+  //sprint("shstrndx:%d\n", ctx->ehdr.shstrndx);
+  //load shstr_table
+  elf_section_header *shstrtab=section_header+ctx->ehdr.shstrndx;
+  char shstr_table[shstrtab->sh_size/sizeof(char)];
+  elf_fpread(ctx, (void *)shstr_table, sizeof(shstr_table), shstrtab->sh_offset);
+  // for(int i=0;i<ctx->ehdr.shnum;i++)
+  // {
+  //   uint32 Name=section_header[i].sh_name;
+  //   sprint("%d: %d %s\n", i, Name, shstr_table+Name);
+  // }
+
+  //find symtab and strtab section header
+  elf_section_header *symtab=0, *strtab=0;
+  for(int i=0;i<ctx->ehdr.shnum;i++)
+  {
+    char *section_name = shstr_table+section_header[i].sh_name;
+    if (strcmp(section_name, ".symtab")==0) symtab=section_header + i;
+    if (strcmp(section_name, ".strtab")==0) strtab=section_header + i;
+  }
+  //sprint("%s %s\n", shstr_table+symtab->sh_name, shstr_table+strtab->sh_name);
+
+  //load str_table
+  char str_table[strtab->sh_size/sizeof(char)];
+  elf_fpread(ctx, (void *)str_table, sizeof(str_table), strtab->sh_offset);
+
+  //for(int i=0;i<(strtab->sh_size/sizeof(char));i++) {sprint("%c", str_table[i]);}
+  //sprint("\n");
+
+  //load sym_table
+  int symnum=symtab->sh_size/sizeof(elf_sym_section);
+  //sprint("symnum: %d\n", symnum);
+  elf_sym_section sym_table[symnum];
+  elf_fpread(ctx, (void *)sym_table, sizeof(sym_table), symtab->sh_offset);
+
+  //print symbol name
+  for(int i=0;i<symnum;i++)
+  {
+    char *symbol_name=str_table+sym_table[i].st_name;
+    //sprint("%d: %s %p\n", i, symbol_name, sym_table[i].st_value);
+    if (!*symbol_name) continue;
+    strcpy(func_name[*func_num].name, symbol_name);
+    func_name[*func_num].addr = sym_table[i].st_value;
+    (*func_num)++;
+  }
+}
+
+void load_function_name(process *p, int *func_num, function_name *func_name)
+{
+  arg_buf arg_bug_msg;
+
+  // retrieve command line arguements
+  size_t argc = parse_args(&arg_bug_msg);
+  //if (!argc) panic("You need to specify the application program!\n");
+
+  //sprint("Application: %s\n", arg_bug_msg.argv[0]);
+
+  //elf loading. elf_ctx is defined in kernel/elf.h, used to track the loading process.
+  elf_ctx elfloader;
+  // elf_info is defined above, used to tie the elf file and its corresponding process.
+  elf_info info;
+
+  info.f = spike_file_open(arg_bug_msg.argv[0], O_RDONLY, 0);
+  info.p = p;
+  // IS_ERR_VALUE is a macro defined in spike_interface/spike_htif.h
+  if (IS_ERR_VALUE(info.f)) panic("Fail on openning the input application program.\n");
+
+  // init elfloader context. elf_init() is defined above.
+  if (elf_init(&elfloader, &info) != EL_OK)
+    panic("fail to init elfloader.\n");
+
+  // load elf. elf_load() is defined above.
+  if (elf_load(&elfloader) != EL_OK) panic("Fail on loading elf.\n");
+
+  // entry (virtual, also physical in lab1_x) address
+  //p->trapframe->epc = elfloader.ehdr.entry;
+
+  load_symbol(&elfloader, func_num, func_name);
+
+  // close the host spike file
+  spike_file_close( info.f );
+
+  //sprint("Application program entry point (virtual address): 0x%lx\n", p->trapframe->epc);
+}
