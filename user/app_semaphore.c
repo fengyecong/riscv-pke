@@ -18,12 +18,14 @@ int main(void) {
             printu("Child%d print %d\n", pid == 0, i);
             if (pid != 0) sem_V(child_sem[1]); else sem_V(main_sem);
         }
+        sem_del(child_sem[pid==0]);
     } else {
         for (int i = 0; i < 10; i++) {
             sem_P(main_sem);
             printu("Parent print %d\n", i);
             sem_V(child_sem[0]);
         }
+        sem_del(main_sem);
     }
     exit(0);
     return 0;

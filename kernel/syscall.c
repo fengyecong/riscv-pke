@@ -83,6 +83,72 @@ ssize_t sys_user_yield() {
   return 0;
 }
 
+typedef struct semaphore_t {
+  int value;
+  process *head, *tail;
+}semaphore_t;
+int semdelete[100],semdelete_count=0;
+semaphore_t semaphore[100];
+int semaphore_count=0;
+
+int get_semaphore_number()
+{
+  if(!semdelete_count) return ++semaphore_count;
+  int x=semdelete[semdelete_count--];
+  return x;
+}
+
+int sys_user_sem_new(int value)
+{
+  int x=get_semaphore_number();
+  semaphore[x].value=value;
+  semaphore[x].head=semaphore[x].tail=NULL;
+  return x;
+}
+
+int sys_user_sem_del(int sam)
+{
+  sprint("-----------semaphore %d is releasd------------\n");
+  semdelete[++semdelete_count]=sam;
+  semaphore[sam].value=0;
+  semaphore[sam].head=semaphore[sam].tail=NULL;
+  return 0;
+}
+
+int sys_user_sem_P(int sem)
+{
+  semaphore[sem].value--;
+  if (semaphore[sem].value>=0) return 0;
+
+  if (!semaphore[sem].head)
+  {
+    semaphore[sem].head=semaphore[sem].tail=current;
+    current->sem_P_next=NULL;
+  }
+  else
+  {
+    semaphore[sem].tail->sem_P_next=current;
+    semaphore[sem].tail=current;
+    current->sem_P_next=NULL;
+  }
+  current->status=BLOCKED;
+  schedule();
+  return 0;
+}
+
+int sys_user_sem_V(int sem)
+{
+  semaphore[sem].value++;
+  if (!semaphore[sem].head) return 0;
+
+  process *x=semaphore[sem].head;
+  semaphore[sem].head=x->sem_P_next;
+  if (!x->sem_P_next) semaphore[sem].tail=NULL;
+  x->sem_P_next=NULL;
+  insert_to_ready_queue(x);
+  return 0;
+}
+
 //
 // [a0]: the syscall number; [a1] ... [a7]: arguments to the syscalls.
 // returns the code of success, (e.g., 0 means success, fail for otherwise)
@@ -102,6 +168,14 @@ long do_syscall(long a0, long a1, long a2, long a3, long a4, long a5, long a6, l
       return sys_user_fork();
     case SYS_user_yield:
       return sys_user_yield();
+    case SYS_sem_new:
+      return sys_user_sem_new(a1);
+    case SYS_sem_del:
+      return sys_user_sem_del(a1);
+    case SYS_sem_P:
+      return sys_user_sem_P(a1);
+    case SYS_sem_V:
+      return sys_user_sem_V(a1);
     default:
       panic("Unknown syscall %ld \n", a0);
   }
