@@ -71,6 +71,10 @@ typedef struct process_t {
 
   // accounting. added @lab3_3
   int tick_count;
+
+  struct process_t *child_head, *child_left, *child_right;
+  struct process_t *child_kill;
+  int wait_pid;
 }process;
 
 // switch to run user app
