@@ -367,6 +367,7 @@ void load_file(process *p, char *filename, int linenum, char *line)
   spike_file_t *f=spike_file_open(filename, O_RDONLY, 0);
 
   static char buf[1024];
+
   int offset=0,cnt=1;
 
   while(1) 
@@ -382,7 +383,7 @@ void load_file(process *p, char *filename, int linenum, char *line)
       } 
       else 
       {
-        if(cnt==linenum) *(line++)=buf[i];
+        if(cnt==linenum)*(line++)=buf[i];
       }
     }
   }
