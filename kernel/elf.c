@@ -161,6 +161,7 @@ void load_symbol(elf_ctx *ctx, int *func_num, function_name *func_name)
   {
     char *section_name = shstr_table+section_header[i].sh_name;
     if (strcmp(section_name, ".symtab")==0) symtab=section_header + i;
+
     if (strcmp(section_name, ".strtab")==0) strtab=section_header + i;
   }
   //sprint("%s %s\n", shstr_table+symtab->sh_name, shstr_table+strtab->sh_name);
@@ -184,7 +185,9 @@ void load_symbol(elf_ctx *ctx, int *func_num, function_name *func_name)
     char *symbol_name=str_table+sym_table[i].st_name;
     //sprint("%d: %s %p\n", i, symbol_name, sym_table[i].st_value);
     if (!*symbol_name) continue;
+
     strcpy(func_name[*func_num].name, symbol_name);
+    
     func_name[*func_num].addr = sym_table[i].st_value;
     (*func_num)++;
   }
