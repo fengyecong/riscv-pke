@@ -211,93 +211,91 @@ uint64 alloc_n_size(uint64 n)
   MCB* cur = head;
   while(cur != NULL)
   {
-    if(cur->used == 0 && cur -> size >= n + sizeof(MCB))
-      return cur->v_addr;
-    cur = cur->suc;
+    if(cur->used==0&&cur->size>=n+sizeof(MCB)) return cur->v_addr;
+    cur=cur->suc;
   }
-  typ = 1;
-  g_ufree_page = ((g_ufree_page + 15) >> 4)<<4;
+  typ=1;
 
+  g_ufree_page = ((g_ufree_page + 15) >> 4)<<4;
   if(ROUNDDOWN(g_ufree_page, PGSIZE) != ROUNDDOWN(g_ufree_page + sizeof(MCB) -1, PGSIZE))
     g_ufree_page = ROUNDDOWN(g_ufree_page + sizeof(MCB) -1, PGSIZE);
   uint64 lpos = ROUNDDOWN(g_ufree_page, PGSIZE);
   uint64 rpos = ROUNDDOWN(g_ufree_page + n +sizeof(MCB) -1 , PGSIZE);
   uint64 now = lpos;
-  while(now <= rpos)
+
+  while(now<=rpos)
   {
-    pte_t *pte = page_walk(current->pagetable, now, 1);
-    if((*pte & PTE_V) == 0)
+    pte_t *pte=page_walk(current->pagetable, now, 1);
+    if((*pte&PTE_V)==0)
     {
-      uint64 npg = (uint64) alloc_page();
-      * pte = PA2PTE(npg) | PTE_V | prot_to_type(PROT_WRITE | PROT_READ, 1);
+      uint64 npg=(uint64)alloc_page();
+      *pte=PA2PTE(npg)|PTE_V|prot_to_type(PROT_WRITE|PROT_READ, 1);
     }
-    now += PGSIZE;
+    now+=PGSIZE;
   }
   return g_ufree_page;
 }
 
 uint64 user_better_allocate(uint64 n)
 {
-  typ = 0;
-  uint64 mcb_addr = alloc_n_size(n);
-  MCB *now = (MCB *) user_va_to_pa(current->pagetable, (void *)mcb_addr);
+  typ=0;
+  uint64 mcb_addr=alloc_n_size(n);
+  MCB *now=(MCB*) user_va_to_pa(current->pagetable, (void *)mcb_addr);
   if(typ)
   {
-    now->used = 1;
-    now->suc = NULL;
-    now->pre = NULL;
-    now->size = n + sizeof(MCB);
-    now->v_addr = mcb_addr;
-    if(head == NULL) head = tail = now;
+    now->used=1;
+    now->suc=NULL;
+    now->pre=NULL;
+    now->size=n+sizeof(MCB);
+    now->v_addr=mcb_addr;
+    if(head==NULL) head=tail=now;
     else
     {
-      tail -> suc = now;
-      now -> pre = tail;
-      tail = now;
+      tail->suc=now;
+      now->pre=tail;
+      tail=now;
     }
-    g_ufree_page += n + sizeof(MCB);
-    return mcb_addr + sizeof(MCB);
+    g_ufree_page+=n+sizeof(MCB);
+    return mcb_addr+sizeof(MCB);
   }
   else 
   {
-    now->used = 1;
-    now->size = n + sizeof(MCB);
+    now->used=1;
+    now->size=n+sizeof(MCB);
     if(now->suc!=NULL) 
     {
-      uint64 nxtpos = now->v_addr + now->size;
-      nxtpos = (nxtpos + 15) <<4 >> 4;
-      if(nxtpos + sizeof(MCB) < now->suc->v_addr)
+      uint64 nxtpos=now->v_addr+now->size;
+      nxtpos=(nxtpos+15)<<4>>4;
+      if(nxtpos+sizeof(MCB)<now->suc->v_addr)
       {
-        MCB *nxtmcb = (MCB *) user_va_to_pa(current->pagetable, (void *)nxtpos);
-        nxtmcb->pre = now;
-        nxtmcb->suc = now->suc;
-        nxtmcb->size = now->suc->v_addr - nxtpos +1;
-        nxtmcb->used = 0;
-        nxtmcb->v_addr = nxtpos;
-        now->suc->pre = nxtmcb;
-        now->suc = nxtmcb;
+        MCB *nxtmcb=(MCB *) user_va_to_pa(current->pagetable, (void *)nxtpos);
+        nxtmcb->pre=now;
+        nxtmcb->suc=now->suc;
+        nxtmcb->size=now->suc->v_addr-nxtpos+1;
+        nxtmcb->used=0;
+        nxtmcb->v_addr=nxtpos;
+        now->suc->pre=nxtmcb;
+        now->suc=nxtmcb;
       }
     }
-    return now->v_addr + sizeof(MCB);
+    return now->v_addr+sizeof(MCB);
   }
 }
-
-
 
 uint64 user_better_free(uint64 va)
 {
   //sprint("va:%p\n",va);
-  MCB *now = (MCB *) user_va_to_pa(current->pagetable, (void *)(va - sizeof(MCB)));
+  MCB *now=(MCB *) user_va_to_pa(current->pagetable, (void *)(va - sizeof(MCB)));
   //sprint("now:%p\n",now);
-  now->used = 0;
-  MCB *lpos = now, *rpos = now;
-  uint64 len = now->size;
-  while(lpos->pre != NULL && lpos->pre->used == 0) lpos = lpos ->pre, len += lpos->size;
-  while(rpos->suc != NULL && rpos->suc->used == 0) rpos = rpos ->suc, len += rpos->size;
-  MCB *res = lpos;
-  res -> used = 0;
-  res -> suc = rpos -> suc;
-  if(rpos->suc!=NULL) rpos->suc->pre = res;
-  res -> size = len;
+  now->used=0;
+  MCB *lpos=now, *rpos=now;
+  uint64 len=now->size;
+  while(lpos->pre!=NULL&&lpos->pre->used==0) lpos=lpos->pre, len+=lpos->size;
+  while(rpos->suc!=NULL&&rpos->suc->used==0) rpos=rpos->suc, len+=rpos->size;
+  MCB *res=lpos;
+  res->used=0;
+  res->suc=rpos->suc;
+  if(rpos->suc!=NULL) rpos->suc->pre=res;
+  res->size=len;
   return 0;
 }
